@@ -126,7 +126,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       (p) => p.id == member.userId,
                       orElse: () => UserProfile(
                         id: member.userId,
-                        email: '',
+                        email: 'no email',
                         socialAccounts: [],
                         createdAt: DateTime.now(),
                         updatedAt: DateTime.now(),

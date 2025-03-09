@@ -70,12 +70,11 @@ class SocialMediaService {
       throw Exception('User not authenticated');
     }
     
+    // Ensure user profile exists first
+    await ensureUserProfileExists();
+    
     final userRef = _usersCollection.doc(userId);
     final userDoc = await userRef.get();
-    
-    if (!userDoc.exists) {
-      await updateUserProfile();
-    }
     
     // Get existing accounts or create empty list
     List<SocialMediaAccount> accounts = [];
@@ -83,13 +82,13 @@ class SocialMediaService {
       final userData = userDoc.data() as Map<String, dynamic>;
       if (userData['socialAccounts'] != null) {
         accounts = (userData['socialAccounts'] as List)
-            .map((account) => SocialMediaAccount.fromMap(account))
+            .map((account) => SocialMediaAccount.fromMap(account as Map<String, dynamic>))
             .toList();
       }
     }
     
     // Check if the platform already exists and update or add
-    int existingIndex = accounts.indexWhere((a) => a.platform == platform);
+    int existingIndex = accounts.indexWhere((a) => a.platform.toLowerCase() == platform.toLowerCase());
     if (existingIndex >= 0) {
       accounts[existingIndex] = SocialMediaAccount(
         platform: platform,
@@ -111,6 +110,8 @@ class SocialMediaService {
       'socialAccounts': accounts.map((account) => account.toMap()).toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    
+    print('Connected $platform account for user $userId: $username');
   }
   
   // Mock method for disconnecting social media account
@@ -170,5 +171,30 @@ class SocialMediaService {
     
     // Return success or throw an error for failure
     return;
+  }
+
+  // Ensure user profile exists
+  Future<void> ensureUserProfileExists() async {
+    final userId = _authService.getCurrentUserId();
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    
+    final userRef = _usersCollection.doc(userId);
+    final userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      // Create new profile if it doesn't exist
+      final currentUser = _authService.currentUser;
+      await userRef.set({
+        'email': currentUser?.email ?? '',
+        'displayName': currentUser?.displayName ?? '',
+        'photoUrl': currentUser?.photoURL,
+        'socialAccounts': [],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print('Created new user profile for $userId');
+    }
   }
 }
