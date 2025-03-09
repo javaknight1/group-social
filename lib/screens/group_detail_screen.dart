@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 // import 'package:qr_flutter/qr_flutter.dart';
 import '../models/group.dart';
 import '../models/group_member.dart';
+import '../models/user_profile.dart';
 import '../services/group_service.dart';
+import '../services/social_media_service.dart';
+import '../services/auth_service.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -16,9 +19,14 @@ class GroupDetailScreen extends StatefulWidget {
 
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
   final GroupService _groupService = GroupService();
+  final SocialMediaService _socialMediaService = SocialMediaService();
+  final AuthService _authService = AuthService();
+  
   bool _isLoading = true;
+  bool _isFollowingAll = false;
   Group? _group;
   String _error = '';
+  List<UserProfile> _memberProfiles = [];
 
   @override
   void initState() {
@@ -33,11 +41,29 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         _group = group;
         _isLoading = false;
       });
+      
+      // Also load member profiles when available
+      _loadMemberProfiles();
     } catch (e) {
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
+    }
+  }
+  
+  Future<void> _loadMemberProfiles() async {
+    try {
+      final members = await _groupService.getGroupMembers(widget.groupId).first;
+      final userIds = members.map((member) => member.userId).toList();
+      
+      final profiles = await _socialMediaService.getGroupMemberProfiles(userIds);
+      
+      setState(() {
+        _memberProfiles = profiles;
+      });
+    } catch (e) {
+      // Handle error silently, we'll still show the group without profile details
     }
   }
 
@@ -94,12 +120,80 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   itemCount: members.length,
                   itemBuilder: (context, index) {
                     final member = members[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(member.userId.substring(0, 1).toUpperCase()),
+                    
+                    // Find corresponding user profile if available
+                    final profile = _memberProfiles.firstWhere(
+                      (p) => p.id == member.userId,
+                      orElse: () => UserProfile(
+                        id: member.userId,
+                        email: '',
+                        socialAccounts: [],
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
                       ),
-                      title: Text(member.userId),
-                      subtitle: Text(member.isAdmin ? 'Admin' : 'Member'),
+                    );
+                    
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16, 
+                        vertical: 8,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: Colors.blue.shade100,
+                                  child: Text(
+                                    profile.displayName?.substring(0, 1).toUpperCase() ?? 
+                                    profile.email.substring(0, 1).toUpperCase(),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        profile.displayName ?? profile.email,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        member.isAdmin ? 'Admin' : 'Member',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (profile.socialAccounts.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                children: profile.socialAccounts.map((account) {
+                                  return Chip(
+                                    avatar: Icon(_getSocialIcon(account.platform), size: 16),
+                                    label: Text(account.username),
+                                    backgroundColor: _getSocialColor(account.platform).withOpacity(0.2),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     );
                   },
                 );
@@ -111,6 +205,36 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  IconData _getSocialIcon(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'instagram':
+        return Icons.camera_alt;
+      case 'facebook':
+        return Icons.facebook;
+      case 'snapchat':
+        return Icons.crop_square;
+      case 'tiktok':
+        return Icons.music_note;
+      default:
+        return Icons.link;
+    }
+  }
+  
+  Color _getSocialColor(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'instagram':
+        return Colors.pink;
+      case 'facebook':
+        return Colors.blue;
+      case 'snapchat':
+        return Colors.yellow;
+      case 'tiktok':
+        return Colors.black87;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -119,16 +243,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         children: [
           ElevatedButton.icon(
             icon: const Icon(Icons.add_circle),
-            label: const Text('Follow Everyone'),
+            label: _isFollowingAll 
+                ? const Text('Following Everyone...') 
+                : const Text('Follow Everyone'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
+              backgroundColor: _isFollowingAll ? Colors.green : null,
             ),
-            onPressed: () {
-              // In a real app, this would trigger the social media following process
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Following everyone in this group!')),
-              );
-            },
+            onPressed: _isFollowingAll ? null : _followEveryone,
           ),
           const SizedBox(height: 8),
           const Divider(),
@@ -146,6 +268,73 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
     );
   }
+  
+  Future<void> _followEveryone() async {
+    // Get the current user's profile to know which platforms they're on
+    try {
+      setState(() {
+        _isFollowingAll = true;
+      });
+      
+      final currentUserProfile = await _socialMediaService.getUserProfile();
+      if (currentUserProfile == null) {
+        throw Exception('User profile not found');
+      }
+      
+      // Get all connected platforms from current user
+      final connectedPlatforms = currentUserProfile.socialAccounts
+          .where((account) => account.isConnected)
+          .map((account) => account.platform)
+          .toList();
+      
+      if (connectedPlatforms.isEmpty) {
+        throw Exception('No connected social media accounts found');
+      }
+      
+      // For each platform the current user is on, follow all other members who are on it
+      for (var platform in connectedPlatforms) {
+        // Get usernames to follow on this platform
+        final usersToFollow = _memberProfiles
+            .where((profile) => profile.id != _authService.getCurrentUserId())
+            .map((profile) => profile.socialAccounts
+                .firstWhere(
+                  (account) => account.platform == platform && account.isConnected,
+                  orElse: () => SocialMediaAccount(
+                    platform: platform,
+                    username: '',
+                    isConnected: false,
+                  ),
+                )
+            )
+            .where((account) => account.isConnected && account.username.isNotEmpty)
+            .map((account) => account.username)
+            .toList();
+        
+        if (usersToFollow.isNotEmpty) {
+          await _socialMediaService.followUsersOnPlatform(platform, usersToFollow);
+        }
+      }
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Successfully followed everyone!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFollowingAll = false;
+        });
+      }
+    }
+  }
 
   void _showShareDialog() {
     final String joinUrl = 'socialconnector://join/${widget.groupId}';
@@ -158,13 +347,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Share this QR code or link to invite others:'),
-            const SizedBox(height: 20),
+            // const SizedBox(height: 20),
             // QrImageView(
             //   data: joinUrl,
             //   version: QrVersions.auto,
             //   size: 200.0,
             // ),
-            // const SizedBox(height: 20),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
@@ -195,5 +384,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _debugPrintMemberProfiles() {
+    print('-------------- MEMBER PROFILES (${_memberProfiles.length}) --------------');
+    for (int i = 0; i < _memberProfiles.length; i++) {
+      final profile = _memberProfiles[i];
+      print('Profile #$i:');
+      print('  ID: ${profile.id}');
+      print('  Email: ${profile.email}');
+      print('  Display Name: ${profile.displayName ?? "N/A"}');
+      print('  Created: ${profile.createdAt}');
+      
+      // Print social accounts
+      print('  Social Accounts (${profile.socialAccounts.length}):');
+      for (var account in profile.socialAccounts) {
+        print('    - ${account.platform}: ${account.username} (Connected: ${account.isConnected})');
+      }
+      print('----------------------------------------');
+    }
   }
 }
