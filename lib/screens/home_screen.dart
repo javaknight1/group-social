@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/group.dart';
 import '../services/group_service.dart';
 import 'create_group_screen.dart';
-// import 'group_detail_screen.dart';
+import 'group_detail_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -98,15 +98,12 @@ class HomeScreen extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    // Navigator.push(
-                    //   context,
-                    //   MaterialPageRoute(
-                    //     builder: (context) => GroupDetailScreen(groupId: group.id),
-                    //   ),
-                    // );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Group details screen coming soon!')),
-              );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GroupDetailScreen(groupId: group.id),
+                      ),
+                    );
                   },
                 ),
               );
