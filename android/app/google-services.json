@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "610998659439",
+    "project_id": "group-social-app",
+    "storage_bucket": "group-social-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:610998659439:android:e1398a443a9c017ab9a09a",
+        "android_client_info": {
+          "package_name": "com.example.group_social"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjjBOqLYs30Olk_F8ddc0l_aE-xM0jEEU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
