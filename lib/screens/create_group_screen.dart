@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/group_service.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({Key? key}) : super(key: key);
@@ -10,6 +11,7 @@ class CreateGroupScreen extends StatefulWidget {
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _groupNameController = TextEditingController();
+  final _groupService = GroupService();
 
   @override
   void dispose() {
@@ -51,6 +53,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Group created!')),
                     );
+                    _groupService.createGroup(_groupNameController.text);
                     Navigator.pop(context);
                   }
                 },
