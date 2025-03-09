@@ -85,7 +85,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       await _authService.registerWithEmailAndPassword(_email, _password);
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const SocialAccountsSetupScreen()),
+                        MaterialPageRoute(builder: (context) => const SocialAccountsSetupScreen(
+                          mode: ScreenMode.registration,
+                        )),
                       );
                     } catch (e) {
                       setState(() {

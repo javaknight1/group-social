@@ -15,6 +15,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Groups'),
+        automaticallyImplyLeading: false, // Explicitly disable back button
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

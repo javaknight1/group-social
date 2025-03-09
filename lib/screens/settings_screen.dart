@@ -32,8 +32,9 @@ class SettingsScreen extends StatelessWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SocialAccountsSetupScreen()),
-              );
+                MaterialPageRoute(builder: (context) => const SocialAccountsSetupScreen(
+                  mode: ScreenMode.settings,
+                )),              );
             },
           ),
           ListTile(

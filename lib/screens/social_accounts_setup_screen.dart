@@ -2,8 +2,18 @@ import 'package:flutter/material.dart';
 import '../services/social_media_service.dart';
 import 'home_screen.dart';
 
+enum ScreenMode {
+  registration,
+  settings
+}
+
 class SocialAccountsSetupScreen extends StatefulWidget {
-  const SocialAccountsSetupScreen({Key? key}) : super(key: key);
+  final ScreenMode mode;
+  
+  const SocialAccountsSetupScreen({
+    Key? key, 
+    this.mode = ScreenMode.registration
+  }) : super(key: key);
 
   @override
   _SocialAccountsSetupScreenState createState() => _SocialAccountsSetupScreenState();
@@ -12,14 +22,20 @@ class SocialAccountsSetupScreen extends StatefulWidget {
 class _SocialAccountsSetupScreenState extends State<SocialAccountsSetupScreen> {
   final _socialMediaService = SocialMediaService();
   
-  // For each platform, we need a controller for the username
   final _instagramController = TextEditingController();
   final _facebookController = TextEditingController();
   final _snapchatController = TextEditingController();
   final _tiktokController = TextEditingController();
   
   bool _isLoading = false;
+  bool _isInitializing = true;
   String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingAccounts();
+  }
 
   @override
   void dispose() {
@@ -30,14 +46,67 @@ class _SocialAccountsSetupScreenState extends State<SocialAccountsSetupScreen> {
     super.dispose();
   }
 
+    Future<void> _loadExistingAccounts() async {
+    try {
+      setState(() {
+        _isInitializing = true;
+      });
+      
+      // Get the current user's profile
+      final userProfile = await _socialMediaService.getUserProfile();
+      
+      if (userProfile != null && userProfile.socialAccounts.isNotEmpty) {
+        // Populate text controllers with existing values
+        for (var account in userProfile.socialAccounts) {
+          switch (account.platform.toLowerCase()) {
+            case 'instagram':
+              _instagramController.text = account.username;
+              break;
+            case 'facebook':
+              _facebookController.text = account.username;
+              break;
+            case 'snapchat':
+              _snapchatController.text = account.username;
+              break;
+            case 'tiktok':
+              _tiktokController.text = account.username;
+              break;
+          }
+        }
+        
+        print('Loaded accounts: ${userProfile.socialAccounts.length}');
+      }
+    } catch (e) {
+      print('Error loading social accounts: $e');
+      // Don't show error to user, just log it
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Connect Your Accounts'),
-        automaticallyImplyLeading: false,
+        // Show back button in settings mode, hide in registration mode
+        automaticallyImplyLeading: widget.mode == ScreenMode.settings,
+        // Show skip button in registration mode only
+        actions: widget.mode == ScreenMode.registration ? [
+          TextButton(
+            onPressed: _navigateToHome,
+            child: const Text(
+              'Skip',
+              style: TextStyle(color: Colors.purple),
+            ),
+          ),
+        ] : null,
       ),
-      body: _isLoading
+      body: _isLoading || _isInitializing
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -106,16 +175,9 @@ class _SocialAccountsSetupScreenState extends State<SocialAccountsSetupScreen> {
                     ),
                     child: const Text('Save and Continue'),
                   ),
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => const HomeScreen()),
-                      );
-                    },
-                    child: const Text('Skip for now'),
-                  ),
+                  // Only show Skip option in registration mode as text button at bottom
+                  if (widget.mode == ScreenMode.registration) 
+                    const SizedBox(height: 10),
                 ],
               ),
             ),
@@ -168,6 +230,19 @@ class _SocialAccountsSetupScreenState extends State<SocialAccountsSetupScreen> {
     );
   }
 
+  void _navigateToHome() {
+    if (widget.mode == ScreenMode.registration) {
+      // From registration: clear the entire navigation stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (route) => false,  // This predicate ensures all previous routes are removed
+      );
+    } else {
+      // From settings: just go back
+      Navigator.pop(context);
+    }
+  }
+
   Future<void> _saveAccounts() async {
     setState(() {
       _isLoading = true;
@@ -175,41 +250,49 @@ class _SocialAccountsSetupScreenState extends State<SocialAccountsSetupScreen> {
     });
 
     try {
-      // Connect accounts that have usernames entered
+      // Instagram
       if (_instagramController.text.isNotEmpty) {
         await _socialMediaService.connectSocialAccount(
           'instagram',
           _instagramController.text.trim(),
         );
+      } else {
+        await _socialMediaService.disconnectSocialAccount('instagram');
       }
       
+      // Facebook
       if (_facebookController.text.isNotEmpty) {
         await _socialMediaService.connectSocialAccount(
           'facebook',
           _facebookController.text.trim(),
         );
+      } else {
+        await _socialMediaService.disconnectSocialAccount('facebook');
       }
       
+      // Snapchat
       if (_snapchatController.text.isNotEmpty) {
         await _socialMediaService.connectSocialAccount(
           'snapchat',
           _snapchatController.text.trim(),
         );
+      } else {
+        await _socialMediaService.disconnectSocialAccount('snapchat');
       }
       
+      // TikTok
       if (_tiktokController.text.isNotEmpty) {
         await _socialMediaService.connectSocialAccount(
           'tiktok',
           _tiktokController.text.trim(),
         );
+      } else {
+        await _socialMediaService.disconnectSocialAccount('tiktok');
       }
       
-      // Navigate to home screen
+      // Navigate based on mode
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        _navigateToHome();
       }
     } catch (e) {
       setState(() {
